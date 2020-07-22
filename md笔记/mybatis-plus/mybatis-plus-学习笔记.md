@@ -1,206 +1,100 @@
-# mybatis-plus
+# 通用`Mapper`
 
-**此笔记只用于补充个人理解，具体参考`MP使用教程.epub`或者`MP使用教程.pdf`**
+# 查询`Retrieve`
 
-
-
-## 快速开始
-
-### 数据库脚本
-
-```sql
-DROP TABLE IF EXISTS user;
-
-CREATE TABLE user
-(
-    id BIGINT(20) NOT NULL COMMENT '主键ID',
-    name VARCHAR(30) NULL DEFAULT NULL COMMENT '姓名',
-    age INT(11) NULL DEFAULT NULL COMMENT '年龄',
-    email VARCHAR(50) NULL DEFAULT NULL COMMENT '邮箱',
-    PRIMARY KEY (id)
-);
-
-DELETE FROM user;
-
-INSERT INTO user (id, name, age, email) VALUES
-(1, 'Jone', 18, 'test1@baomidou.com'),
-(2, 'Jack', 20, 'test2@baomidou.com'),
-(3, 'Tom', 28, 'test3@baomidou.com'),
-(4, 'Sandy', 21, 'test4@baomidou.com'),
-(5, 'Billie', 24, 'test5@baomidou.com');
-```
-
-### pom.xml
-
-```xml
-<parent>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-parent</artifactId>
-    <version>2.2.1.RELEASE</version>
-    <relativePath/>
-</parent>
-
-<dependencies>
-    <dependency>
-    	<groupId>org.springframework.boot</groupId>
-    	<artifactId>spring-boot-starter-web</artifactId>
-	</dependency>
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter</artifactId>
-    </dependency>
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-test</artifactId>
-        <scope>test</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.projectlombok</groupId>
-        <artifactId>lombok</artifactId>
-        <optional>true</optional>
-    </dependency>
-    <dependency>
-        <groupId>com.baomidou</groupId>
-        <artifactId>mybatis-plus-boot-starter</artifactId>
-        <version>3.3.2</version>
-    </dependency>
-    <dependency>
-        <groupId>mysql</groupId>
-        <artifactId>mysql-connector-java</artifactId>
-        <version>5.1.6</version>
-    </dependency>
-</dependencies>
-
-```
-
-### application.properties
-
-```properties
-spring:
-  datasource:
-    driver-class-name: com.mysql.jdbc.Driver
-    username: root
-    password: root
-    url: jdbc:mysql://localhost:3306/mpdemo?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
-```
-
-### 新建pojo
+## 基本查询
 
 ```java
-@Data
-public class User {
-    private Long id;
-    private String name;
-    private Integer age;
-    private String email;
-}
+// 根据 ID 查询
+T selectById(Serializable id);
 ```
 
-### 新建UserMapper
+根据ID查询
+
+
 
 ```java
-// 继承BaseMapper即可传入实体泛型
-public interface UserMapper extends BaseMapper<User> {
-}
+/**
+ * 查询（根据ID 批量查询）
+ *
+ * @param idList 主键ID列表(不能为 null 以及 empty)
+ */
+List<T> selectBatchIds(@Param(Constants.COLLECTION) Collection<? extends Serializable> idList);
+
+// 数据库中只有1,2,3,4,5 所以只能查到五条数据
+List<Long> idList = Arrays.asList(1L,2L,3L,4L,5L,6L,7L,8L);
+List<User> users = userMapper.selectBatchIds(idList);
+users.forEach(System.out::println);
 ```
 
-### Test类中测试
+根据ID的List查询，匹配的id就查到，没有的就不显示
+
+生成的SQL是`where id in (...)`
+
+
 
 ```java
-@SpringBootTest
-@RunWith(SpringRunner.class)
-public class TestMpDemo {
+/**
+ * 查询（根据 columnMap 条件）
+ *
+ * @param columnMap 表字段 map 对象
+ */
+List<T> selectByMap(@Param(Constants.COLUMN_MAP) Map<String, Object> columnMap);
 
-    @Autowired
-    private UserMapper userMapper;
-
-    @Test
-    public void testSelect() {
-        System.out.println(("----- selectAll method test ------"));
-        List<User> userList = userMapper.selectList(null);
-        Assert.assertEquals(5, userList.size());
-        userList.forEach(System.out::println);
-    }
-
-}
+// 下面这样的两个put，条件会用and连接
+// WHERE name = 'Jone' AND age = 20 
+Map<String, Object> map = new HashMap<>();
+map.put("name","Jone");
+map.put("age",20);
+List<User> users = userMapper.selectByMap(map);
+users.forEach(System.out::println);
 ```
 
-### 总结
+根据Map查询，Map中key存的是表字段，value存的是字段的值
 
-大大简化了开发，无需手动写SQL以及XML文件，BaseMapper提供了大量的常用方法
-
-
-
-## 开始学习
-
-`insert`新增方法：`UserMapper.insert(user)`
-
-注意：当实体某个属性为空时，MP不会将该字段属性体现在SQL语句中。但是当主键ID为空时，MP会基于雪花算法给一个ID插入到数据库中
+多个条件用and连接
 
 
 
-### 注解
+## 条件构造器查询
 
-#### `@TableName`
+**需求：名字中包含雨并且年龄小于40**
 
-表名注解，当表名跟实体类名不一致的时候
-
-在实体类上加上此注解，并且参数写表名（无论是否一致，都建议写上）
+`name like '%雨%' and age<40`
 
 ```java
-@TableName("mp_user")
-public class User{
-    private Long userId;
-    private String name;
-    private Integer age;
-}
+// 以下两条语句都可以创建出一个条件构造器，作用一样
+QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+//QueryWrapper<User> query = Wrappers.<User>query();
+
+// 条件构造器
+queryWrapper.like("name", "雨").lt("age", 40);
+
+List<User> users = userMapper.selectList(queryWrapper);
+users.forEach(System.out::println);
 ```
 
 
 
-#### `@TableId`
+**需求：名字中包含雨年并且龄大于等于20且小于等于40并且email不为空**
 
-主键注解，主键字段名
-
-在主键对应的字段上加上次注解，并且参数写主键字段名（无论是否一致，都建议写上）
+`name like '%雨%' and age between 20 and 40 and email is not null`
 
 ```java
-@TableName("mp_user")
-public class User{
-    @TableId("user_id")
-    private Long userId;
-    private String name;
-    private Integer age;
-}
+queryWrapper.like("name", "雨").between("age", 20, 40).isNotNull("email");
 ```
 
-
-
-#### `@TableField`
-
-非主键字段注解，当字段名和属性名不一致的时候使用
+**条件构造器链式编程的话，条件会用and连接**
 
 
 
-#### 排除非表字段
+**需求：名字为王姓或者年龄大于等于25，按照年龄降序排列，年龄相同按照id升序排列**
 
-实体类有属性，但是表中没有字段，直接插入会报错
+`name like '王%' or age>=25 order by age desc,id asc`
 
-三种方案：
+```java
+queryWrapper.likeRight("name", "王").or().ge("age",25).orderByDesc("age").orderByAsc("id");
+```
 
-1.修改字段，新增关键字`transient`，表示该字段不参与序列化过程
-
-`private transient String desc;`
-
-
-
-2.修改字段，改为`static`方法,mp会忽略static字段，生成SQL时，不会参与增删
-
-`private static String desc;`
-
-
-
-3.【推荐】属性上添加注解，将字段的exist属性改成false，标识该字段不存在表中，完美解决
-
-`@TableField(exist = false)`
+需要或者or的时候，就调用一个`.or()`排序的话就调用方法`.orderByDesc()`参数为要排序的字段
 

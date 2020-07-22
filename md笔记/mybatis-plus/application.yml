@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    username: root
+    password: root
+    url: jdbc:mysql://localhost:3306/mpdemo?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+
+logging:
+  level:
+    root: warn
+    com.ylx5.demo.mapper: trace
+  pattern:
+    console: '%p%m%n'
